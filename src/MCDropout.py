@@ -34,8 +34,11 @@ validation_set = torchvision.datasets.FashionMNIST('./data', train=False, transf
 
 # select initial AL labeled indices list
 al_indices = torch.randint(high=len(full_training_set), size=(INIT_SIZE,))
-rem_indices = torch.range(0, len(full_training_set) - 1)
-rem_indices = rem_indices[torch.logical_not(torch.isin(rem_indices, al_indices))]
+rem_indices = torch.tensor(range(0, len(full_training_set)))
+mask = np.ones(rem_indices.shape[0], dtype=bool)
+mask[al_indices] = False
+rem_indices = rem_indices[mask]
+
 
 # Create data loaders for our datasets; shuffle for training, not for validation
 # improves data retrieval
@@ -43,7 +46,7 @@ curr_train = torch.utils.data.Subset(full_training_set, al_indices)
 training_loader = torch.utils.data.DataLoader(curr_train, batch_size=4, shuffle=True)
 
 curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
-rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=len(curr_rem), shuffle=False)
+rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=1, shuffle=False)
 
 
 validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=16, shuffle=False)
@@ -97,15 +100,14 @@ criterion = nn.CrossEntropyLoss()
 
 ############# Training the model
 
-def varR(forward_passes, T):
+def varR(predictions, T):
 
     res = []
-    for i in range(len(forward_passes)):
-        curr_pass = forward_passes[:, i]
-        f_m = len(curr_pass[curr_pass == torch.mode(curr_pass).values])
+    for sample in predictions:
+        f_m = len(sample[sample == torch.mode(sample).values])
         res.append(1 - f_m/T)
     
-    return res
+    return torch.tensor(res)
     
 
 train_size = INIT_SIZE
@@ -145,19 +147,31 @@ while(train_size <= ACQ_MAX):
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(training_loader):.4f}")
 
-    # Obtain forward passes
-    mc_passes = torch.tensor([])
-    for _ in range(T):
-        for images, labels in rem_loader:
+    all_preds = torch.tensor([0,0,0,0,0]).to(device)
+
+    for images, labels in rem_loader:
+
+        if len(all_preds) % 1000 == 0:
+            print(f"Predictions: {len(all_preds)}")
+
+        curr_preds = torch.tensor([]).to(device)
+        for _ in range(T):
             images, labels = images.to(device), labels.to(device)
 
             outputs = curr_model(images)
             _, predicted = torch.max(outputs.data, 1)
 
-            mc_passes = torch.cat((mc_passes, predicted), dim = 0)
+            curr_preds = torch.cat((curr_preds, predicted), dim = 0)
+
+        all_preds = torch.vstack((all_preds, curr_preds))
+
+    #drop first row
+    all_preds = all_preds[1:]
+
+    print(all_preds.shape)  
 
     # Calculate Uncertainty
-    uncertainty = varR(mc_passes, T)
+    uncertainty = varR(all_preds, T)
 
     # Select n most uncertain samples and move samples to training set
     new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
@@ -171,7 +185,7 @@ while(train_size <= ACQ_MAX):
     training_loader = torch.utils.data.DataLoader(curr_train, batch_size=4, shuffle=True)
 
     curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
-    rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=len(curr_rem), shuffle=False)
+    rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=1, shuffle=False)
 
 
     # Update curr training size for while loop
