@@ -46,7 +46,7 @@ curr_train = torch.utils.data.Subset(full_training_set, al_indices)
 training_loader = torch.utils.data.DataLoader(curr_train, batch_size=4, shuffle=True)
 
 curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
-rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=1, shuffle=False)
+rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
 
 
 validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=16, shuffle=False)
@@ -112,6 +112,8 @@ def varR(predictions, T):
 
 train_size = INIT_SIZE
 
+accuracy = []
+
 while(train_size <= ACQ_MAX):
 
     print(f"Current Training Set Size: {train_size}")
@@ -123,7 +125,7 @@ while(train_size <= ACQ_MAX):
     # Learning rate scheduler to adjust the learning rate
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-    num_epochs = 1
+    num_epochs = 50
 
     # Training loop
     for epoch in range(num_epochs):
@@ -147,28 +149,45 @@ while(train_size <= ACQ_MAX):
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(training_loader):.4f}")
 
-    all_preds = torch.tensor([0,0,0,0,0]).to(device)
+    #store accuracy
+    correct = 0
+    total = 0
 
+    # Testing loop
+    with torch.no_grad():
+            
+            # Iterate over test data in batches
+            for images, labels in validation_loader:
+                images, labels = images.to(device), labels.to(device)
+    
+                outputs = curr_model(images)
+                _, predicted = torch.max(outputs.data, 1)
+    
+                # Save relevant metrics
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+    
+            accuracy.append(correct / total)
+            print(f'Accuracy of the trained model on the test images: {100 * correct / total:.2f}%')
+
+    all_preds = torch.empty((0, T), dtype=torch.long, device=device)  
     for images, labels in rem_loader:
 
-        if len(all_preds) % 1000 == 0:
-            print(f"Predictions: {len(all_preds)}")
+        batch_size = images.shape[0]
+        curr_preds = torch.empty((batch_size, T), dtype=torch.long, device=device)
 
-        curr_preds = torch.tensor([]).to(device)
-        for _ in range(T):
+        for t in range(T):
             images, labels = images.to(device), labels.to(device)
 
             outputs = curr_model(images)
             _, predicted = torch.max(outputs.data, 1)
 
-            curr_preds = torch.cat((curr_preds, predicted), dim = 0)
+            curr_preds[:, t] = predicted 
 
-        all_preds = torch.vstack((all_preds, curr_preds))
-
-    #drop first row
-    all_preds = all_preds[1:]
+        all_preds = torch.cat((all_preds, curr_preds), dim=0)  # Append batch results
 
     print(all_preds.shape)  
+    print("Predictions complete!")
 
     # Calculate Uncertainty
     uncertainty = varR(all_preds, T)
@@ -185,19 +204,19 @@ while(train_size <= ACQ_MAX):
     training_loader = torch.utils.data.DataLoader(curr_train, batch_size=4, shuffle=True)
 
     curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
-    rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=1, shuffle=False)
-
+    rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
 
     # Update curr training size for while loop
     train_size += ACQ_SIZE
 
-
+accuracy = np.array(accuracy)
+np.savetxt("accuracy_batch.csv", accuracy, delimiter=",")
 
 print('Training complete!')
 
 # Save the final model
 model = curr_model
-torch.save(model.state_dict(), './models/MCDropout.pth')
+torch.save(model.state_dict(), './models/MCDropout_batch.pth')
 print('Model saved!')
 
 ########### Evaluate Model
