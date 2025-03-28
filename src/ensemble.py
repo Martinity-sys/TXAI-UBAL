@@ -148,7 +148,7 @@ for run in range(N_RUNS):
 
         # print(f'Accuracy of the model on the test images: {accuracy:.2f}%')
 
-        # Calculate Uncertainty TODO check if this works properly
+        # Calculate Uncertainty
         all_preds = torch.empty((0,T), dtype=torch.long, device="cuda")
 
         for i, (images, labels) in enumerate(rem_loader):
