@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 
+import argparse
 
 ########## Load Data
 
@@ -27,6 +28,21 @@ INIT_SIZE = 40
 ACQ_SIZE = 40
 ACQ_MAX = 2000
 T = 25
+
+argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropout')
+argparser.add_argument('--runs', type=int, default=10, help='number of runs')
+argparser.add_argument('--save', type=bool, default=False, help='save model')
+argparser.add_argument('--init', type=int, default=40, help='initial size')
+argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
+argparser.add_argument('--max', type=int, default=2000, help='maximum size')
+argparser.add_argument('--t', type=int, default=25, help='number of forward passes')
+args = argparser.parse_args()
+N_RUNS = args.runs
+SAVE_MODEL = args.save
+INIT_SIZE = args.init
+ACQ_SIZE = args.acq
+ACQ_MAX = args.max
+T = args.t
 
 # Normalize images
 transform = transforms.Compose([
