@@ -94,7 +94,7 @@ f = open("data/dataENS.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
-for run in N_RUNS:
+for run in range(N_RUNS):
 
     # Define ensemble (using GPU if available)
     model = VotingClassifier(
@@ -137,8 +137,7 @@ for run in N_RUNS:
             lr = 0.001,
         )
 
-        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000,  save_model = SAVE_MODEL, save_dir= './models/ensemble' + run)
-        print('Training complete!')
+        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000,  save_model = SAVE_MODEL, save_dir= './models/ensemble' + str(run))
 
         # Calculate intermediate metrics and store in csv
         accuracy, loss = curr_model.evaluate(training_loader, return_loss=True)
@@ -147,32 +146,26 @@ for run in N_RUNS:
         # print(f'Accuracy of the model on the test images: {accuracy:.2f}%')
 
         # Calculate Uncertainty TODO check if this works properly
-        preds_full_set = np.zeros((5, len(rem_loader.dataset), 10))
-        curr_idx = 0
+        all_preds = torch.empty((0,T), dtype=torch.long, device="cuda")
 
         for i, (images, labels) in enumerate(rem_loader):
-            print(f'Batch {i+1}/{len(rem_loader)}')
-            all_preds = np.zeros((5, 16, 10))
 
-            for idx, net in enumerate(curr_model.estimators_):
+            batch_size = images.shape[0]
+            curr_preds = torch.empty((batch_size, T), dtype=torch.float, device="cuda")
 
-                tmp_single_model = net
-                tmp_single_model.eval()
+            for idx, model_ind in enumerate(curr_model.estimators_):
+
+                images, labels = images.to("cuda"), labels.to("cuda")
+                outputs = curr_model.estimators_[idx].forward(images)
+                _, predicted = torch.max(outputs.data, 1)
+
+                curr_preds[:, idx] = predicted
+            all_preds = torch.cat((all_preds, curr_preds), dim=0)
+
+        print(all_preds.shape)
+
                 
-                for idx_img, image in enumerate(images):
-
-                    single_input = image.to("cuda") 
-                    single_out = tmp_single_model.forward(single_input.unsqueeze(0))
-                    
-                    #apply softmax
-                    single_out = F.softmax(single_out, dim=1)
-                    all_preds[idx][idx_img] = single_out.cpu().detach().numpy()
-                    preds_full_set[idx][curr_idx] = single_out.cpu().detach().numpy()
-
-                    if idx == model.n_estimators - 1:
-                        curr_idx += 1
-                
-        uncertainty = varR(preds_full_set, T)
+        uncertainty = varR(all_preds, T)
 
         # Select n most uncertain samples and move samples to training set
         new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
@@ -205,50 +198,9 @@ for run in N_RUNS:
 f.close()
 
 
-#############33 OLD CODE
-        # #average the predictions
-        # avg_preds = np.mean(all_preds, axis=0)
-        # avg_preds = np.argmax(avg_preds, axis=1)
-        # print(f'Predictions: {avg_preds}')
-
-        # #full model predictions
-        # outputs = model.forward(images.to("cuda"))
-        # outputs = F.softmax(outputs, dim=1)
-        # outputs = np.argmax(outputs.cpu().detach().numpy(), axis=1)
-        # print(f'Full model predictions: {outputs}')
-
-    # #most uncertain predictions in preds_full_set
-    # uncertainty = np.zeros(len(unlabeled_data_loader.dataset))
-    # for idx, preds in enumerate(preds_full_set):
-    #     for idx_img, pred in enumerate(preds):
-    #         uncertainty[idx_img] = np.var(pred, axis=0)
-
-    # #find the most uncertain predictions
-    # most_uncertain = np.argsort(uncertainty, axis=0)
-    # most_uncertain = most_uncertain[:1000]
-    # print(f'Most uncertain predictions: {most_uncertain}')
-
-    # #add the most uncertain predictions to the labeled dataset
-    # labeled_data.dataset = torch.utils.data.ConcatDataset([labeled_data.dataset, torch.utils.data.Subset(unlabeled_data.dataset, most_uncertain)])
-    # unlabeled_data.dataset = torch.utils.data.Subset(unlabeled_data.dataset, np.delete(np.arange(len(unlabeled_data.dataset)), most_uncertain))
-    # labeled_data_loader = torch.utils.data.DataLoader(labeled_data, batch_size=16, shuffle=True)
-    # unlabeled_data_loader = torch.utils.data.DataLoader(unlabeled_data, batch_size=16, shuffle=False)
-
-    # # Train the model
-    # model.fit(train_loader=labeled_data_loader, epochs = 1, save_model = SAVE_MODEL, save_dir= './models/ensemble' + run)
-    # print('Training complete!')
-
-    # # Evaluate the model
-    # accuracy = model.evaluate(validation_loader)
-    # print(f'Accuracy of the model on the test images: {accuracy:.2f}%')
-
-
 '''
 TODO
 -----------------
-- Check if uncertainty works properly with VarR (maybe update the uncertainty bit similar to MCDropout)
 - check if metrics are being calculated and stored properly
-- check hyperparams
-- remove old code once stuff works
 - do final run
 '''
