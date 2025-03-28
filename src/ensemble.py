@@ -23,16 +23,17 @@ import argparse
 
 ########## Load Data
 
-N_RUNS = 10
-SAVE_MODEL = False
+# N_RUNS = 10
+# SAVE_MODEL = False
 
-# AL Paramaters
+# # AL Paramaters
 
-INIT_SIZE = 40
-ACQ_SIZE = 40
-ACQ_MAX = 2000
-T = 5
+# INIT_SIZE = 40
+# ACQ_SIZE = 40
+# ACQ_MAX = 2000
+# T = 5
 
+# Set Hyperparameters
 argparser = argparse.ArgumentParser(description='Active Learning with Ensembles')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
@@ -41,6 +42,7 @@ argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
 argparser.add_argument('--max', type=int, default=2000, help='maximum size')
 argparser.add_argument('--t', type=int, default=5, help='number of estimators')
 args = argparser.parse_args()
+
 N_RUNS = args.runs
 SAVE_MODEL = args.save
 INIT_SIZE = args.init

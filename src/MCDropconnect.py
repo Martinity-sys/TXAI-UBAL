@@ -1,4 +1,4 @@
-# TXAI - Active Learning using Uncertainty Estimation: Monte Carlo Dropout
+# TXAI - Active Learning using Uncertainty Estimation: Monte Carlo Dropconnect
 # Simple CNN on FMNIST
 # Group 20: Jiri Derks and Martijn van der Meer
 
@@ -11,6 +11,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
+from torchnlp.nn import WeightDropLinear
 
 
 import torchvision
@@ -30,7 +32,7 @@ import argparse
 # T = 25
 
 # Set Hyperparameters
-argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropout')
+argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropconnect')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial size')
@@ -65,6 +67,7 @@ classes = ('T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
 
 
 ########## Define model and uncertainty function
+# Dropconnect on linear layers
 
 
 class Net(nn.Module):
@@ -74,10 +77,11 @@ class Net(nn.Module):
         # Initialise some layers
         self.conv1 = nn.Conv2d(1, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
+        # self.fc1 = nn.Linear(9216, 128)
+        self.dropconnect1 = WeightDropLinear(9216, 128, weight_dropout=0.25)
+        # self.fc2 = nn.Linear(128, 128)
+        self.dropconnect2 = WeightDropLinear(128, 128, weight_dropout=0.5)
+        self.fc3 = nn.Linear(128,10)
 
     def forward(self, x):
         # Define how the layers connect in a forward pass
@@ -86,12 +90,12 @@ class Net(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
         x = torch.flatten(x, 1)
-        x = self.fc1(x)
+        x = self.dropconnect1(x)
         x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
+        x = self.dropconnect2(x)
+        x = F.relu(x)
+        x = self.fc3(x)
         output = F.softmax(x, dim=1)
 
         return output
@@ -108,7 +112,7 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/dataMCD.csv", 'w', newline='')
+f = open("data/dataMCConnect.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
@@ -151,8 +155,10 @@ for run in range(N_RUNS):
 
         print(f"Current Training Set Size: {train_size}")
 
+        #TODO deepcopy was not working so removed for now
         # Copy new model
-        curr_model = copy.deepcopy(model)
+        curr_model = Net()
+        curr_model.to(device)
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
 
         # Learning rate scheduler to adjust the learning rate
@@ -254,7 +260,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/MCDropout' + run + '.pth')
+        torch.save(model.state_dict(), './models/MCDropconnect' + run + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model
