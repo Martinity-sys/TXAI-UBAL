@@ -1,5 +1,5 @@
-# TXAI - Active Learning using Uncertainty Estimation: Monte Carlo Dropout
-# Simple CNN on FMNIST
+# TXAI - Active Learning using Uncertainty Estimation: Random Selection
+# Simple CNN Ensemble on FMNIST
 # Group 20: Jiri Derks and Martijn van der Meer
 
 # imports
@@ -78,19 +78,9 @@ class Net(nn.Module):
 
         return output
 
-# Variation Ratio as measure of uncertainty    
-def varR(predictions, T):
-
-    res = []
-    for sample in predictions:
-        f_m = len(sample[sample == torch.mode(sample).values])
-        res.append(1 - f_m/T)
-    
-    return torch.tensor(res)
-
 ########## Experiment Loop
 
-f = open("data/dataMCD.csv", 'w', newline='')
+f = open("data/dataRAND.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
@@ -210,11 +200,8 @@ for run in range(N_RUNS):
         # print(all_preds.shape)  
         # print("Predictions complete!")
 
-        # Calculate Uncertainty
-        uncertainty = varR(all_preds, T)
-
-        # Select n most uncertain samples and move samples to training set
-        new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
+        # Select n random samples and move samples to training set
+        new_batch = torch.randint(high=len(rem_indices), size=(ACQ_SIZE,))
         al_indices = torch.cat((al_indices, rem_indices[new_batch]))
         mask = np.ones(rem_indices.shape[0], dtype=bool)
         mask[new_batch] = False
@@ -236,7 +223,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/MCDropout' + run + '.pth')
+        torch.save(model.state_dict(), './models/MCDropout' + str(run) + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model

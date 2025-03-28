@@ -1,4 +1,6 @@
-# Simple CNN on FMNIST
+# TXAI - Active Learning using Uncertainty Estimation: Ensembles
+# Simple CNN Ensemble on FMNIST
+# Group 20: Jiri Derks and Martijn van der Meer
 
 # imports
 import torch
@@ -16,6 +18,7 @@ from tqdm import tqdm
 import numpy as np
 import csv
 import copy
+import pickle
 
 ########## Load Data
 
@@ -94,7 +97,7 @@ f = open("data/dataENS.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
-for run in N_RUNS:
+for run in range(N_RUNS):
 
     # Define ensemble (using GPU if available)
     model = VotingClassifier(
@@ -137,8 +140,8 @@ for run in N_RUNS:
             lr = 0.001,
         )
 
-        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000,  save_model = SAVE_MODEL, save_dir= './models/ensemble' + run)
-        print('Training complete!')
+        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000)
+        print(f'Training run {run} complete!')
 
         # Calculate intermediate metrics and store in csv
         accuracy, loss = curr_model.evaluate(training_loader, return_loss=True)
@@ -195,6 +198,10 @@ for run in N_RUNS:
             model = curr_model
 
     print(f'Training run {run} complete!')
+
+    if SAVE_MODEL:
+        with open('./models/ensemble' + str(run) + '.nc', "wb") as f:
+            pickle.dump(model, f)
 
     # Final metrics
     accuracy, loss = model.evaluate(validation_loader, return_loss=True)
