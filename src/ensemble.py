@@ -19,6 +19,7 @@ import numpy as np
 import csv
 import copy
 import pickle
+import argparse
 
 ########## Load Data
 
@@ -26,10 +27,27 @@ N_RUNS = 10
 SAVE_MODEL = False
 
 # AL Paramaters
+
 INIT_SIZE = 40
 ACQ_SIZE = 40
 ACQ_MAX = 2000
 T = 5
+
+argparser = argparse.ArgumentParser(description='Active Learning with Ensembles')
+argparser.add_argument('--runs', type=int, default=10, help='number of runs')
+argparser.add_argument('--save', type=bool, default=False, help='save model')
+argparser.add_argument('--init', type=int, default=40, help='initial size')
+argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
+argparser.add_argument('--max', type=int, default=2000, help='maximum size')
+argparser.add_argument('--t', type=int, default=5, help='number of estimators')
+args = argparser.parse_args()
+N_RUNS = args.runs
+SAVE_MODEL = args.save
+INIT_SIZE = args.init
+ACQ_SIZE = args.acq
+ACQ_MAX = args.max
+T = args.t
+
 
 # Normalize images
 transform = transforms.Compose([
@@ -140,7 +158,7 @@ for run in range(N_RUNS):
             lr = 0.001,
         )
 
-        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000)
+        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000, save_model=False)
 
         # Calculate intermediate metrics and store in csv
         accuracy, loss = curr_model.evaluate(training_loader, return_loss=True)
