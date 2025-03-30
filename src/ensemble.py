@@ -37,10 +37,10 @@ import argparse
 argparser = argparse.ArgumentParser(description='Active Learning with Ensembles')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
-argparser.add_argument('--init', type=int, default=40, help='initial size')
+argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
-argparser.add_argument('--max', type=int, default=2000, help='maximum size')
-argparser.add_argument('--t', type=int, default=5, help='number of estimators')
+argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
+argparser.add_argument('--t', type=int, default=5, help='number of models in the ensemble')
 args = argparser.parse_args()
 
 N_RUNS = args.runs

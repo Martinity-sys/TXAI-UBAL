@@ -33,10 +33,9 @@ import torchvision.transforms as transforms
 argparser = argparse.ArgumentParser(description='Active Learning with Random selection')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
-argparser.add_argument('--init', type=int, default=40, help='initial size')
+argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
-argparser.add_argument('--max', type=int, default=2000, help='maximum size')
-argparser.add_argument('--t', type=int, default=25, help='number of forward passes')
+argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
 args = argparser.parse_args()
 
 N_RUNS = args.runs
@@ -44,7 +43,6 @@ SAVE_MODEL = args.save
 INIT_SIZE = args.init
 ACQ_SIZE = args.acq
 ACQ_MAX = args.max
-T = args.t
 
 # Normalize images
 transform = transforms.Compose([
@@ -198,22 +196,6 @@ for run in range(N_RUNS):
 
         # Store intermediate metrics in csv
         writer.writerow([run, train_size, final_loss, accuracy])
-
-        all_preds = torch.empty((0, T), dtype=torch.long, device=device)  
-        for images, labels in rem_loader:
-
-            batch_size = images.shape[0]
-            curr_preds = torch.empty((batch_size, T), dtype=torch.long, device=device)
-
-            for t in range(T):
-                images, labels = images.to(device), labels.to(device)
-
-                outputs = curr_model(images)
-                _, predicted = torch.max(outputs.data, 1)
-
-                curr_preds[:, t] = predicted 
-
-            all_preds = torch.cat((all_preds, curr_preds), dim=0)  # Append batch results
 
         # print(all_preds.shape)  
         # print("Predictions complete!")
