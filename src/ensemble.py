@@ -31,6 +31,7 @@ argparser.add_argument('--init', type=int, default=40, help='initial labeled set
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
 argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
 argparser.add_argument('--t', type=int, default=5, help='number of models in the ensemble')
+argparser.add_argument('--epochs', type=int, default=50, help='number of epochs for training')
 args = argparser.parse_args()
 
 N_RUNS = args.runs
@@ -38,7 +39,9 @@ SAVE_MODEL = args.save
 INIT_SIZE = args.init
 ACQ_SIZE = args.acq
 ACQ_MAX = args.max
+NUM_EPOCHS = args.epochs
 T = args.t
+
 
 
 # Normalize images
@@ -150,7 +153,7 @@ for run in range(N_RUNS):
             lr = 0.001,
         )
 
-        curr_model.fit(train_loader=training_loader, epochs = 5,log_interval=1000, save_model=False)
+        curr_model.fit(train_loader=training_loader, epochs = NUM_EPOCHS,log_interval=1000, save_model=False)
 
         # Calculate intermediate metrics and store in csv
         accuracy, loss = curr_model.evaluate(training_loader, return_loss=True)

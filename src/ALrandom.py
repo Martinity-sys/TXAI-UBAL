@@ -27,6 +27,7 @@ argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
 argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
+argparser.add_argument('--epochs', type=int, default=50, help='number of epochs for training')
 args = argparser.parse_args()
 
 N_RUNS = args.runs
@@ -34,6 +35,7 @@ SAVE_MODEL = args.save
 INIT_SIZE = args.init
 ACQ_SIZE = args.acq
 ACQ_MAX = args.max
+NUM_EPOCHS = args.epochs
 
 # Normalize images
 transform = transforms.Compose([

@@ -29,6 +29,7 @@ argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
 argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
+argparser.add_argument('--epochs', type=int, default=50, help='number of epochs for training')
 argparser.add_argument('--t', type=int, default=25, help='number of forward passes for uncertainty quantification')
 args = argparser.parse_args()
 
@@ -37,6 +38,7 @@ SAVE_MODEL = args.save
 INIT_SIZE = args.init
 ACQ_SIZE = args.acq
 ACQ_MAX = args.max
+NUM_EPOCHS = args.epochs
 T = args.t
 
 # Normalize images
@@ -154,11 +156,11 @@ for run in range(N_RUNS):
         # Learning rate scheduler to adjust the learning rate
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-        num_epochs = 50
+        
 
         # Training loop
         final_loss = 0
-        for epoch in range(num_epochs):
+        for epoch in range(NUM_EPOCHS):
             running_loss = 0.0
 
             # Iterate over training data in batches
@@ -177,9 +179,9 @@ for run in range(N_RUNS):
             # Step the scheduler after each epoch
             scheduler.step()
 
-            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(training_loader):.4f}")
+            print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
 
-            if epoch == num_epochs - 1:
+            if epoch == NUM_EPOCHS - 1:
                 final_loss = running_loss/len(training_loader)
 
         # Calculate intermediate metrics
