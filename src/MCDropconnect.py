@@ -22,15 +22,6 @@ import argparse
 
 ########## Load Data
 
-# N_RUNS = 10
-# SAVE_MODEL = False
-
-# # AL Paramaters
-# INIT_SIZE = 40
-# ACQ_SIZE = 40
-# ACQ_MAX = 2000
-# T = 25
-
 # Set Hyperparameters
 argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropconnect')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
@@ -155,8 +146,7 @@ for run in range(N_RUNS):
 
         print(f"Current Training Set Size: {train_size}")
 
-        #TODO deepcopy was not working so removed for now
-        # Copy new model
+        # reinitialize model (deepcopy does not work with the weightdrop layers)
         curr_model = Net()
         curr_model.to(device)
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
