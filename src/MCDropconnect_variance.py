@@ -1,33 +1,36 @@
-# TXAI - Active Learning using Uncertainty Estimation: Random Selection
-# Simple CNN Ensemble on FMNIST
+# TXAI - Active Learning using Uncertainty Estimation: Monte Carlo Dropconnect
+# Simple CNN on FMNIST
 # Group 20: Jiri Derks and Martijn van der Meer
 
 # imports
 import copy
 import numpy as np
 import csv
-import argparse
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+from torchnlp.nn import WeightDropLinear
+
 
 import torchvision
 import torchvision.transforms as transforms
 
+import argparse
 
 ########## Load Data
 
 # Set Hyperparameters
-argparser = argparse.ArgumentParser(description='Active Learning with Random selection')
+argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropconnect')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
 argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
 argparser.add_argument('--epochs', type=int, default=50, help='number of epochs for training')
+argparser.add_argument('--t', type=int, default=25, help='number of forward passes for uncertainty quantification')
 args = argparser.parse_args()
 
 N_RUNS = args.runs
@@ -36,6 +39,7 @@ INIT_SIZE = args.init
 ACQ_SIZE = args.acq
 ACQ_MAX = args.max
 NUM_EPOCHS = args.epochs
+T = args.t
 
 # Normalize images
 transform = transforms.Compose([
@@ -56,6 +60,7 @@ classes = ('T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
 
 
 ########## Define model and uncertainty function
+# Dropconnect on linear layers
 
 
 class Net(nn.Module):
@@ -65,10 +70,11 @@ class Net(nn.Module):
         # Initialise some layers
         self.conv1 = nn.Conv2d(1, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
+        # self.fc1 = nn.Linear(9216, 128)
+        self.dropconnect1 = WeightDropLinear(9216, 128, weight_dropout=0.25)
+        # self.fc2 = nn.Linear(128, 128)
+        self.dropconnect2 = WeightDropLinear(128, 128, weight_dropout=0.5)
+        self.fc3 = nn.Linear(128,10)
 
     def forward(self, x):
         # Define how the layers connect in a forward pass
@@ -77,24 +83,34 @@ class Net(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
         x = torch.flatten(x, 1)
-        x = self.fc1(x)
+        x = self.dropconnect1(x)
         x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
+        x = self.dropconnect2(x)
+        x = F.relu(x)
+        x = self.fc3(x)
         output = F.softmax(x, dim=1)
 
         return output
 
+# Variation Ratio as measure of uncertainty    
+def varR(predictions, T):
+
+    res = []
+    for sample in predictions:
+        f_m = len(sample[sample == torch.mode(sample).values])
+        res.append(1 - f_m/T)
+    
+    return torch.tensor(res)
+
 ########## Experiment Loop
 
-f = open("data/dataRAND.csv", 'w', newline='')
+f = open("data/dataMCConnect.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
 for run in range(N_RUNS):
-
+    print(f'RUN {run}')
     model = Net()
 
     # Set the model to training mode and use GPU if available
@@ -118,7 +134,7 @@ for run in range(N_RUNS):
     training_loader = torch.utils.data.DataLoader(curr_train, batch_size=64, shuffle=True)
 
     curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
-    rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
+    rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=1024, shuffle=False)
 
     
     ############# Training the model
@@ -130,20 +146,21 @@ for run in range(N_RUNS):
 
     while(train_size <= ACQ_MAX):
 
-        #print(f"Current Training Set Size: {train_size}")
+        print(f"Current Training Set Size: {train_size}", end='\r')
 
-        # Copy new model
-        curr_model = copy.deepcopy(model)
+        # reinitialize model (deepcopy does not work with the weightdrop layers)
+        curr_model = Net()
+        curr_model.to(device)
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
 
         # Learning rate scheduler to adjust the learning rate
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-        num_epochs = 50
+        
 
         # Training loop
         final_loss = 0
-        for epoch in range(num_epochs):
+        for epoch in range(NUM_EPOCHS):
             running_loss = 0.0
 
             # Iterate over training data in batches
@@ -162,9 +179,9 @@ for run in range(N_RUNS):
             # Step the scheduler after each epoch
             scheduler.step()
 
-            #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(training_loader):.4f}")
+            #print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
 
-            if epoch == num_epochs - 1:
+            if epoch == NUM_EPOCHS - 1:
                 final_loss = running_loss/len(training_loader)
 
         # Calculate intermediate metrics
@@ -190,11 +207,34 @@ for run in range(N_RUNS):
         # Store intermediate metrics in csv
         writer.writerow([run, train_size, final_loss, accuracy])
 
-        # print(all_preds.shape)  
-        # print("Predictions complete!")
+        all_preds = torch.empty((0, T, 10), dtype=torch.float32, device=device)  
+        for images, labels in rem_loader:
+            images, labels = images.to(device), labels.to(device)
+            batch_size = images.shape[0]
+            curr_preds = np.empty((batch_size, T, 10), dtype=np.float32)
 
-        # Select n random samples and move samples to training set
-        new_batch = torch.randint(high=len(rem_indices), size=(ACQ_SIZE,))
+            for t in range(T):
+                
+                outputs = curr_model(images)
+                
+                curr_preds[:, t, :] = outputs.cpu().detach().numpy()
+
+            all_preds = torch.cat((all_preds, torch.Tensor(curr_preds).to(device)), dim=0)  # Append batch results
+
+
+        # Calculate Uncertainty
+        uncertainty = []
+        for sample in all_preds:
+            
+            #sample = sample.cpu().detach().numpy()
+            uncertainty.append(torch.var(sample))
+        
+        uncertainty = torch.tensor(uncertainty, device=device)
+        
+
+        # Select n most uncertain samples and move samples to training set
+        new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
+        new_batch = new_batch.cpu()
         al_indices = torch.cat((al_indices, rem_indices[new_batch]))
         mask = np.ones(rem_indices.shape[0], dtype=bool)
         mask[new_batch] = False
@@ -205,7 +245,7 @@ for run in range(N_RUNS):
         training_loader = torch.utils.data.DataLoader(curr_train, batch_size=64, shuffle=True)
 
         curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
-        rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
+        rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=1024, shuffle=False)
 
         # Update curr training size for while loop
         train_size += ACQ_SIZE
@@ -216,7 +256,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/RAND' + str(run) + '.pth')
+        torch.save(model.state_dict(), './models/MCDropconnect' + str(run) + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model

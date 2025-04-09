@@ -1,36 +1,33 @@
-# TXAI - Active Learning using Uncertainty Estimation: Ensembles
-# Simple CNN Ensemble on FMNIST
+# TXAI - Active Learning using Uncertainty Estimation: Monte Carlo Dropout
+# Simple CNN on FMNIST
 # Group 20: Jiri Derks and Martijn van der Meer
 
 # imports
+import copy
+import numpy as np
+import csv
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from torchensemble import VotingClassifier
-
 
 import torchvision
 import torchvision.transforms as transforms
-from tqdm import tqdm
 
-import numpy as np
-import csv
-import copy
-import pickle
 import argparse
 
 ########## Load Data
 
 # Set Hyperparameters
-argparser = argparse.ArgumentParser(description='Active Learning with Ensembles')
+argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropout')
 argparser.add_argument('--runs', type=int, default=10, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
 argparser.add_argument('--max', type=int, default=2000, help='maximum labeled set size')
-argparser.add_argument('--t', type=int, default=5, help='number of models in the ensemble')
+argparser.add_argument('--t', type=int, default=25, help='number of forward passes for uncertainty quantification')
 argparser.add_argument('--epochs', type=int, default=50, help='number of epochs for training')
 args = argparser.parse_args()
 
@@ -41,8 +38,6 @@ ACQ_SIZE = args.acq
 ACQ_MAX = args.max
 NUM_EPOCHS = args.epochs
 T = args.t
-
-
 
 # Normalize images
 transform = transforms.Compose([
@@ -63,8 +58,6 @@ classes = ('T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
 
 
 ########## Define model and uncertainty function
-
-
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -106,20 +99,19 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/VarR/dataENS.csv", 'w', newline='')
+f = open("data/variance/dataMCD.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
 for run in range(N_RUNS):
 
-    # Define ensemble (using GPU if available)
-    model = VotingClassifier(
-        estimator = Net,
-        n_estimators=T,
-        cuda = torch.cuda.is_available(), 
-    )
+    model = Net()
 
-    # Set criterion and optimizer
+    # Set the model to training mode and use GPU if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
 
     # select initial AL labeled indices list
@@ -138,53 +130,101 @@ for run in range(N_RUNS):
     curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
     rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
 
+    
+    ############# Training the model
+        
 
-    ############# AL loop
-
-    # Train the model
     train_size = INIT_SIZE
+
+    accuracy = []
+
     while(train_size <= ACQ_MAX):
 
+        #print(f"Current Training Set Size: {train_size}")
+
+        # Copy new model
         curr_model = copy.deepcopy(model)
-        curr_model.set_criterion(criterion)
+        optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
 
-        curr_model.set_optimizer(
-            'Adam',
-            lr = 0.001,
-        )
+        # Learning rate scheduler to adjust the learning rate
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-        curr_model.fit(train_loader=training_loader, epochs = NUM_EPOCHS,log_interval=1000, save_model=False)
+        # Training loop
+        final_loss = 0
+        for epoch in range(NUM_EPOCHS):
+            running_loss = 0.0
 
-        # Calculate intermediate metrics and store in csv
-        accuracy, loss = curr_model.evaluate(training_loader, return_loss=True)
-        writer.writerow([run, train_size, loss, accuracy])
+            # Iterate over training data in batches
+            for images, labels in training_loader:
+                images, labels = images.to(device), labels.to(device)
 
-        # print(f'Accuracy of the model on the test images: {accuracy:.2f}%')
+                # Optimization step
+                optimizer.zero_grad()
+                outputs = curr_model(images)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+
+                running_loss += loss.item()
+
+            # Step the scheduler after each epoch
+            scheduler.step()
+
+            #print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
+
+            if epoch == NUM_EPOCHS - 1:
+                final_loss = running_loss/len(training_loader)
+
+        # Calculate intermediate metrics
+        correct = 0
+        total = 0
+
+        # Intermediate Testing loop
+        with torch.no_grad():
+                
+            # Iterate over test data in batches
+            for images, labels in training_loader:
+                images, labels = images.to(device), labels.to(device)
+    
+                outputs = curr_model(images)
+                _, predicted = torch.max(outputs.data, 1)
+    
+                # Save relevant metrics
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        
+        accuracy = correct / total
+
+        # Store intermediate metrics in csv
+        writer.writerow([run, train_size, final_loss, accuracy])
+
+        all_preds = torch.empty((0, T, 10), dtype=torch.float32, device=device)  
+        for images, labels in rem_loader:
+            images, labels = images.to(device), labels.to(device)
+            batch_size = images.shape[0]
+            curr_preds = np.empty((batch_size, T, 10), dtype=np.float32)
+
+            for t in range(T):
+                
+                outputs = curr_model(images)
+                
+                curr_preds[:, t, :] = outputs.cpu().detach().numpy()
+
+            all_preds = torch.cat((all_preds, torch.Tensor(curr_preds).to(device)), dim=0)  # Append batch results
+
 
         # Calculate Uncertainty
-        all_preds = torch.empty((0,T), dtype=torch.long, device="cuda")
-
-        for i, (images, labels) in enumerate(rem_loader):
-
-            batch_size = images.shape[0]
-            curr_preds = torch.empty((batch_size, T), dtype=torch.float, device="cuda")
-
-            for idx, model_ind in enumerate(curr_model.estimators_):
-
-                images, labels = images.to("cuda"), labels.to("cuda")
-                outputs = curr_model.estimators_[idx].forward(images)
-                _, predicted = torch.max(outputs.data, 1)
-
-                curr_preds[:, idx] = predicted
-            all_preds = torch.cat((all_preds, curr_preds), dim=0)
-
-        #print(all_preds.shape)
-
-                
-        uncertainty = varR(all_preds, T)
+        uncertainty = []
+        for sample in all_preds:
+            
+            #sample = sample.cpu().detach().numpy()
+            uncertainty.append(torch.var(sample))
+        
+        uncertainty = torch.tensor(uncertainty, device=device)
 
         # Select n most uncertain samples and move samples to training set
         new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
+        new_batch = new_batch.cpu()
         al_indices = torch.cat((al_indices, rem_indices[new_batch]))
         mask = np.ones(rem_indices.shape[0], dtype=bool)
         mask[new_batch] = False
@@ -206,33 +246,41 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        with open('./models/VarR/ensemble' + str(run) + '.nc', "wb") as f_final:
-            pickle.dump(model, f_final)
-        f_final.close()
+        torch.save(model.state_dict(), './models/variance/MCDropout' + str(run) + '.pth')
+        print('Model saved!')
 
+    ########### Evaluate Model
 
-    # Final metrics
-    accuracy, loss = model.evaluate(validation_loader, return_loss=True)
+    # Set the model to evaluation mode
+    model.eval()
 
-    print(f'RUN {run}: Loss of the trained model on the test images: {loss:.4f}')
-    print(f'RUN {run}: Accuracy of the trained model on the test images: {100 * accuracy:.2f}%')
+    correct = 0
+    total = 0
+    loss = 0
 
-
-    #save average accuracy and loss in new csv numpy file
-    with open('data/VarR/ensemble_final.csv', 'a') as f_csv_final:
-        writer2 = csv.writer(f_csv_final)
-        writer2.writerow([run, accuracy, loss])
-    f_csv_final.close()
-
+    # Testing loop
+    with torch.no_grad():
         
+        # Iterate over test data in batches
+        for images, labels in validation_loader:
+            images, labels = images.to(device), labels.to(device)
+
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+
+            # Save relevant metrics
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            loss += criterion(outputs, labels).item() * labels.size(0)
+
+    print(f'RUN {run}: Loss of the trained model on the test images: {loss / len(validation_loader.dataset):.4f}')
+    print(f'RUN {run}: Accuracy of the trained model on the test images: {100 * correct / total:.2f}%')
 
 f.close()
-
-
 
 '''
 TODO
 -----------------
-- check if metrics are being calculated and stored properly
+- test dropout parameters
 - do final run
 '''

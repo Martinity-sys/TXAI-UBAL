@@ -52,7 +52,7 @@ full_training_set = torchvision.datasets.FashionMNIST('./data', train=True, tran
 validation_set = torchvision.datasets.FashionMNIST('./data', train=False, transform=transform, download=True)
 
 # Define loader for validation data, loader for training data is defined inside AL loop
-validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=16, shuffle=False)
+validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=64, shuffle=False)
 
 # Class labels
 classes = ('T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
@@ -105,12 +105,12 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/dataMCConnect.csv", 'w', newline='')
+f = open("data/VarR/dataMCConnect.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
 for run in range(N_RUNS):
-
+    print(f'RUN {run}')
     model = Net()
 
     # Set the model to training mode and use GPU if available
@@ -131,7 +131,7 @@ for run in range(N_RUNS):
     # Create data loaders for our datasets; shuffle for training, not for validation
     # improves data retrieval
     curr_train = torch.utils.data.Subset(full_training_set, al_indices)
-    training_loader = torch.utils.data.DataLoader(curr_train, batch_size=4, shuffle=True)
+    training_loader = torch.utils.data.DataLoader(curr_train, batch_size=64, shuffle=True)
 
     curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
     rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
@@ -146,7 +146,7 @@ for run in range(N_RUNS):
 
     while(train_size <= ACQ_MAX):
 
-        print(f"Current Training Set Size: {train_size}")
+        #print(f"Current Training Set Size: {train_size}")
 
         # reinitialize model (deepcopy does not work with the weightdrop layers)
         curr_model = Net()
@@ -179,7 +179,7 @@ for run in range(N_RUNS):
             # Step the scheduler after each epoch
             scheduler.step()
 
-            print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
+            #print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
 
             if epoch == NUM_EPOCHS - 1:
                 final_loss = running_loss/len(training_loader)
@@ -228,6 +228,7 @@ for run in range(N_RUNS):
 
         # Calculate Uncertainty
         uncertainty = varR(all_preds, T)
+        
 
         # Select n most uncertain samples and move samples to training set
         new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
@@ -238,7 +239,7 @@ for run in range(N_RUNS):
 
         # Update data loaders
         curr_train = torch.utils.data.Subset(full_training_set, al_indices)
-        training_loader = torch.utils.data.DataLoader(curr_train, batch_size=4, shuffle=True)
+        training_loader = torch.utils.data.DataLoader(curr_train, batch_size=64, shuffle=True)
 
         curr_rem = torch.utils.data.Subset(full_training_set, rem_indices)
         rem_loader = torch.utils.data.DataLoader(curr_rem, batch_size=512, shuffle=False)
@@ -252,7 +253,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/MCDropconnect' + run + '.pth')
+        torch.save(model.state_dict(), './models/VarR/MCDropconnect' + str(run) + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model

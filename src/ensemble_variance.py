@@ -106,9 +106,11 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/VarR/dataENS.csv", 'w', newline='')
+f = open("data/variance/dataENS.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 for run in range(N_RUNS):
 
@@ -162,33 +164,34 @@ for run in range(N_RUNS):
         # print(f'Accuracy of the model on the test images: {accuracy:.2f}%')
 
         # Calculate Uncertainty
-        all_preds = torch.empty((0,T), dtype=torch.long, device="cuda")
+        all_preds = torch.empty((0, T, 10), dtype=torch.float, device=device)
 
         for i, (images, labels) in enumerate(rem_loader):
-
             batch_size = images.shape[0]
-            curr_preds = torch.empty((batch_size, T), dtype=torch.float, device="cuda")
+            curr_preds = np.empty((batch_size, T, 10), dtype=np.float32)
+
+            images, labels = images.to(device), labels.to(device)
 
             for idx, model_ind in enumerate(curr_model.estimators_):
-
-                images, labels = images.to("cuda"), labels.to("cuda")
                 outputs = curr_model.estimators_[idx].forward(images)
-                _, predicted = torch.max(outputs.data, 1)
+                curr_preds[:, idx, :] = outputs.cpu().detach().numpy()  # (batch_size, T, num_classes)
 
-                curr_preds[:, idx] = predicted
-            all_preds = torch.cat((all_preds, curr_preds), dim=0)
+            all_preds = torch.cat((all_preds, torch.Tensor(curr_preds).to(device)), dim=0)
 
-        #print(all_preds.shape)
+        # Compute variance across ensemble (T) dimension
+        variance_across_ensemble = torch.var(all_preds, dim=1)  # shape: (num_samples, num_classes)
 
-                
-        uncertainty = varR(all_preds, T)
+        # Reduce variance across classes to a single uncertainty score per sample
+        uncertainty = variance_across_ensemble.mean(dim=1)  # shape: (num_samples,)
 
         # Select n most uncertain samples and move samples to training set
-        new_batch = torch.topk(uncertainty, k = ACQ_SIZE).indices
+        new_batch = torch.topk(uncertainty, k=ACQ_SIZE).indices
+        new_batch = new_batch.cpu()
         al_indices = torch.cat((al_indices, rem_indices[new_batch]))
         mask = np.ones(rem_indices.shape[0], dtype=bool)
-        mask[new_batch] = False
+        mask[new_batch.cpu().numpy()] = False
         rem_indices = rem_indices[mask]
+
 
         # Update data loaders
         curr_train = torch.utils.data.Subset(full_training_set, al_indices)
@@ -206,7 +209,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        with open('./models/VarR/ensemble' + str(run) + '.nc', "wb") as f_final:
+        with open('./models/variance/ensemble' + str(run) + '.nc', "wb") as f_final:
             pickle.dump(model, f_final)
         f_final.close()
 
@@ -219,7 +222,7 @@ for run in range(N_RUNS):
 
 
     #save average accuracy and loss in new csv numpy file
-    with open('data/VarR/ensemble_final.csv', 'a') as f_csv_final:
+    with open('data/variance/ensemble_final.csv', 'a') as f_csv_final:
         writer2 = csv.writer(f_csv_final)
         writer2.writerow([run, accuracy, loss])
     f_csv_final.close()
