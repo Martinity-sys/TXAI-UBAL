@@ -1,5 +1,5 @@
 # TXAI - Active Learning using Uncertainty Estimation: Random Selection
-# Simple CNN Ensemble on FMNIST
+# Simple CNN on FMNIST
 # Group 20: Jiri Derks and Martijn van der Meer
 
 # imports
@@ -89,6 +89,7 @@ class Net(nn.Module):
 
 ########## Experiment Loop
 
+# Initialise CSV writer to save metrics
 f = open("data/model_data/dataRAND.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
@@ -96,15 +97,14 @@ writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 for run in range(N_RUNS):
 
     model = Net()
-
-    # Set the model to training mode and use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    # Define loss function and optimizer
+    # Define criterion
     criterion = nn.CrossEntropyLoss()
 
-    # select initial AL labeled indices list
+    # Select initial AL labeled indices list
+    # Use list of indices of full train set to track current train set
     al_indices = torch.randint(high=len(full_training_set), size=(INIT_SIZE,))
     rem_indices = torch.tensor(range(0, len(full_training_set)))
     mask = np.ones(rem_indices.shape[0], dtype=bool)
@@ -113,7 +113,7 @@ for run in range(N_RUNS):
 
 
     # Create data loaders for our datasets; shuffle for training, not for validation
-    # improves data retrieval
+    # Improves data retrieval
     curr_train = torch.utils.data.Subset(full_training_set, al_indices)
     training_loader = torch.utils.data.DataLoader(curr_train, batch_size=64, shuffle=True)
 
@@ -123,22 +123,15 @@ for run in range(N_RUNS):
     
     ############# Training the model
         
-
     train_size = INIT_SIZE
-
     accuracy = []
 
     while(train_size <= ACQ_MAX):
 
-        #print(f"Current Training Set Size: {train_size}")
-
-        # Copy new model
+        # Initialise model from scratch
         curr_model = Net().to(device)
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
         curr_model.train()
-
-        # Learning rate scheduler to adjust the learning rate
-        #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
         num_epochs = 50
 
@@ -159,11 +152,6 @@ for run in range(N_RUNS):
                 optimizer.step()
 
                 running_loss += loss.item()
-
-            # Step the scheduler after each epoch
-            # scheduler.step()
-
-            #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(training_loader):.4f}")
 
             if epoch == num_epochs - 1:
                 final_loss = running_loss/len(training_loader)
@@ -191,9 +179,6 @@ for run in range(N_RUNS):
 
         # Store intermediate metrics in csv
         writer.writerow([run, train_size, final_loss, accuracy])
-
-        # print(all_preds.shape)  
-        # print("Predictions complete!")
 
         # Select n random samples and move samples to training set
         new_batch = torch.randint(high=len(rem_indices), size=(ACQ_SIZE,))
@@ -249,10 +234,3 @@ for run in range(N_RUNS):
     print(f'RUN {run}: Accuracy of the trained model on the test images: {100 * correct / total:.2f}%')
 
 f.close()
-
-'''
-TODO
------------------
-- test dropout parameters
-- do final run
-'''

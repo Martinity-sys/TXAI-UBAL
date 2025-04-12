@@ -1,4 +1,4 @@
-# TXAI - Active Learning using Uncertainty Estimation: Ensembles
+# TXAI - Active Learning using Uncertainty Estimation: Ensembles w/ Variation Ratio
 # Simple CNN Ensemble on FMNIST
 # Group 20: Jiri Derks and Martijn van der Meer
 
@@ -106,6 +106,7 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
+# Initialise CSV writer to save metrics
 f = open("data/model_data/dataENS_varR.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
@@ -119,10 +120,11 @@ for run in range(N_RUNS):
         cuda = torch.cuda.is_available(), 
     )
 
-    # Set criterion and optimizer
+    # Set criterion
     criterion = nn.CrossEntropyLoss()
 
-    # select initial AL labeled indices list
+    # Select initial AL labeled indices list
+    # Use list of indices of full train set to track current train set
     al_indices = torch.randint(high=len(full_training_set), size=(INIT_SIZE,))
     rem_indices = torch.tensor(range(0, len(full_training_set)))
     mask = np.ones(rem_indices.shape[0], dtype=bool)
@@ -131,7 +133,7 @@ for run in range(N_RUNS):
 
 
     # Create data loaders for our datasets; shuffle for training, not for validation
-    # improves data retrieval
+    # Improves data retrieval
     curr_train = torch.utils.data.Subset(full_training_set, al_indices)
     training_loader = torch.utils.data.DataLoader(curr_train, batch_size=64, shuffle=True)
 
@@ -143,8 +145,10 @@ for run in range(N_RUNS):
 
     # Train the model
     train_size = INIT_SIZE
+
     while(train_size <= ACQ_MAX):
 
+        # Make copy of the model for current AL step
         curr_model = copy.deepcopy(model)
         curr_model.set_criterion(criterion)
 
@@ -158,8 +162,6 @@ for run in range(N_RUNS):
         # Calculate intermediate metrics and store in csv
         accuracy, loss = curr_model.evaluate(training_loader, return_loss=True)
         writer.writerow([run, train_size, loss, accuracy])
-
-        # print(f'Accuracy of the model on the test images: {accuracy:.2f}%')
 
         # Calculate Uncertainty
         all_preds = torch.empty((0,T), dtype=torch.long, device="cuda")
@@ -177,9 +179,6 @@ for run in range(N_RUNS):
 
                 curr_preds[:, idx] = predicted
             all_preds = torch.cat((all_preds, curr_preds), dim=0)
-
-        #print(all_preds.shape)
-
                 
         uncertainty = varR(all_preds, T)
 
@@ -227,12 +226,3 @@ for run in range(N_RUNS):
         
 
 f.close()
-
-
-
-'''
-TODO
------------------
-- check if metrics are being calculated and stored properly
-- do final run
-'''
