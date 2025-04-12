@@ -1,0 +1,8 @@
+matplotlib==3.5.2
+numpy==2.2.4
+pandas==1.4.2
+pytorch_nlp==0.5.0
+torch==2.6.0
+torchensemble==0.2.0
+torchvision==0.21.0
+tqdm==4.67.1
