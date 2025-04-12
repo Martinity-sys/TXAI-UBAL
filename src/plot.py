@@ -14,7 +14,6 @@ def plot_accuracy_and_loss(csv1_path, csv2_path, csv3_path, csv4_path,
     for df in [df1, df2, df3, df4]:
         df.columns = df.columns.str.lower()
 
-
     # Function to compute mean and std for accuracy and loss
     def compute_stats(df, divide_accuracy=False):
         stats = df.groupby('train_size')[['accuracy', 'loss']].agg(['mean', 'std']).reset_index()
@@ -43,16 +42,17 @@ def plot_accuracy_and_loss(csv1_path, csv2_path, csv3_path, csv4_path,
     ax.fill_between(df2_stats['train_size'], df2_stats['acc_mean'] - df2_stats['acc_std'],
                     df2_stats['acc_mean'] + df2_stats['acc_std'], alpha=0.2)
 
-    ax.plot(df3_stats['train_size'], df3_stats['acc_mean'], label=label3)
-    ax.fill_between(df3_stats['train_size'], df3_stats['acc_mean'] - df3_stats['acc_std'],
-                    df3_stats['acc_mean'] + df3_stats['acc_std'], alpha=0.2)
+    # ax.plot(df3_stats['train_size'], df3_stats['acc_mean'], label=label3)
+    # ax.fill_between(df3_stats['train_size'], df3_stats['acc_mean'] - df3_stats['acc_std'],
+    #                 df3_stats['acc_mean'] + df3_stats['acc_std'], alpha=0.2)
 
-    ax.plot(df4_stats['train_size'], df4_stats['acc_mean'], label=label4)
-    ax.fill_between(df4_stats['train_size'], df4_stats['acc_mean'] - df4_stats['acc_std'],
-                    df4_stats['acc_mean'] + df4_stats['acc_std'], alpha=0.2)
+    # ax.plot(df4_stats['train_size'], df4_stats['acc_mean'], label=label4)
+    # ax.fill_between(df4_stats['train_size'], df4_stats['acc_mean'] - df4_stats['acc_std'],
+    #                 df4_stats['acc_mean'] + df4_stats['acc_std'], alpha=0.2)
 
     ax.set_title('Average Accuracy vs Set Size')
     ax.set_ylabel('Accuracy')
+    ax.set_xlabel('Set Size')
     ax.legend()
     ax.grid(True)
 
@@ -66,13 +66,13 @@ def plot_accuracy_and_loss(csv1_path, csv2_path, csv3_path, csv4_path,
     ax.fill_between(df2_stats['train_size'], df2_stats['loss_mean'] - df2_stats['loss_std'],
                     df2_stats['loss_mean'] + df2_stats['loss_std'], alpha=0.2)
 
-    ax.plot(df3_stats['train_size'], df3_stats['loss_mean'], label=label3)
-    ax.fill_between(df3_stats['train_size'], df3_stats['loss_mean'] - df3_stats['loss_std'],
-                    df3_stats['loss_mean'] + df3_stats['loss_std'], alpha=0.2)
+    # ax.plot(df3_stats['train_size'], df3_stats['loss_mean'], label=label3)
+    # ax.fill_between(df3_stats['train_size'], df3_stats['loss_mean'] - df3_stats['loss_std'],
+    #                 df3_stats['loss_mean'] + df3_stats['loss_std'], alpha=0.2)
 
-    ax.plot(df4_stats['train_size'], df4_stats['loss_mean'], label=label4)
-    ax.fill_between(df4_stats['train_size'], df4_stats['loss_mean'] - df4_stats['loss_std'],
-                    df4_stats['loss_mean'] + df4_stats['loss_std'], alpha=0.2)
+    # ax.plot(df4_stats['train_size'], df4_stats['loss_mean'], label=label4)
+    # ax.fill_between(df4_stats['train_size'], df4_stats['loss_mean'] - df4_stats['loss_std'],
+    #                 df4_stats['loss_mean'] + df4_stats['loss_std'], alpha=0.2)
 
     ax.set_title('Average Loss vs Set Size')
     ax.set_xlabel('Set Size')
@@ -81,10 +81,11 @@ def plot_accuracy_and_loss(csv1_path, csv2_path, csv3_path, csv4_path,
     ax.grid(True)
 
     plt.tight_layout()
-    plt.savefig('accuracy_loss_plot.png')
+    print("Plots generated successfully.")
+    plt.savefig('accuracy_loss_plot_ENS.png')
 
 if __name__ == "__main__":
-    plot_accuracy_and_loss("data/VarR/dataMCConnect.csv", "data/varR/dataMCD.csv", "data/VarR/dataRAND.csv", "data/VarR/dataENS.csv",
-                           label1='VarR MCDropconnect', label2='MC Dropout', label3='RAND', label4='ENS')
+    plot_accuracy_and_loss("data/variance/DataENS.csv", "data/VarR/DataENS.csv", "data/tst/dataRAND.csv", "data/variance/DataENS.csv",
+                           label1='Ensembles variance', label2='Ensembles varR', label3='Random Aquisition', label4='Ensemble variance')
     
 

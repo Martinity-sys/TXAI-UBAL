@@ -22,7 +22,7 @@ import torchvision.transforms as transforms
 
 # Set Hyperparameters
 argparser = argparse.ArgumentParser(description='Active Learning with Random selection')
-argparser.add_argument('--runs', type=int, default=10, help='number of runs')
+argparser.add_argument('--runs', type=int, default=5, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
@@ -89,7 +89,7 @@ class Net(nn.Module):
 
 ########## Experiment Loop
 
-f = open("data/dataRAND.csv", 'w', newline='')
+f = open("data/model_data/dataRAND.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
@@ -133,11 +133,12 @@ for run in range(N_RUNS):
         #print(f"Current Training Set Size: {train_size}")
 
         # Copy new model
-        curr_model = copy.deepcopy(model)
+        curr_model = Net().to(device)
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
+        curr_model.train()
 
         # Learning rate scheduler to adjust the learning rate
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+        #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
         num_epochs = 50
 
@@ -160,7 +161,7 @@ for run in range(N_RUNS):
                 running_loss += loss.item()
 
             # Step the scheduler after each epoch
-            scheduler.step()
+            # scheduler.step()
 
             #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(training_loader):.4f}")
 
@@ -172,6 +173,7 @@ for run in range(N_RUNS):
         total = 0
 
         # Intermediate Testing loop
+        model.eval()  # Set the model to evaluation mode
         with torch.no_grad():
                 
             # Iterate over test data in batches

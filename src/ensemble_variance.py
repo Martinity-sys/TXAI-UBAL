@@ -106,7 +106,7 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/variance/dataENS.csv", 'w', newline='')
+f = open("data/model_data/dataENS_variance.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
@@ -222,7 +222,7 @@ for run in range(N_RUNS):
 
 
     #save average accuracy and loss in new csv numpy file
-    with open('data/variance/ensemble_final.csv', 'a') as f_csv_final:
+    with open('data/model_data/ensemble_final_variance.csv', 'a') as f_csv_final:
         writer2 = csv.writer(f_csv_final)
         writer2.writerow([run, accuracy, loss])
     f_csv_final.close()

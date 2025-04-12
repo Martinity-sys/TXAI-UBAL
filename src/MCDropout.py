@@ -22,7 +22,7 @@ import argparse
 
 # Set Hyperparameters
 argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropout')
-argparser.add_argument('--runs', type=int, default=10, help='number of runs')
+argparser.add_argument('--runs', type=int, default=5, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
@@ -99,13 +99,15 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/VarR/dataMCD.csv", 'w', newline='')
+f = open("data/tst/dataMCD_new_varR.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 for run in range(N_RUNS):
 
-    model = Net()
+    model = Net().to(device)
 
     # Set the model to training mode and use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -143,11 +145,12 @@ for run in range(N_RUNS):
         #print(f"Current Training Set Size: {train_size}")
 
         # Copy new model
-        curr_model = copy.deepcopy(model)
+        curr_model = Net().to(device)
+        curr_model.train()  # Set the model to training mode
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
 
         # Learning rate scheduler to adjust the learning rate
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+        #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
         # Training loop
         final_loss = 0
@@ -168,7 +171,7 @@ for run in range(N_RUNS):
                 running_loss += loss.item()
 
             # Step the scheduler after each epoch
-            scheduler.step()
+            #scheduler.step()
 
             #print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
 
@@ -178,6 +181,8 @@ for run in range(N_RUNS):
         # Calculate intermediate metrics
         correct = 0
         total = 0
+
+        curr_model.eval()  # Set the model to evaluation mode
 
         # Intermediate Testing loop
         with torch.no_grad():
@@ -198,6 +203,7 @@ for run in range(N_RUNS):
         # Store intermediate metrics in csv
         writer.writerow([run, train_size, final_loss, accuracy])
 
+        model.train()
         all_preds = torch.empty((0, T), dtype=torch.long, device=device)  
         for images, labels in rem_loader:
 
@@ -243,7 +249,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/VarR/MCDropout' + str(run) + '.pth')
+        torch.save(model.state_dict(), './models/tst/varR/MCDropout' + str(run) + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model

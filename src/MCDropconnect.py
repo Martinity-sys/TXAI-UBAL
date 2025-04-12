@@ -24,7 +24,7 @@ import argparse
 
 # Set Hyperparameters
 argparser = argparse.ArgumentParser(description='Active Learning with Monte Carlo Dropconnect')
-argparser.add_argument('--runs', type=int, default=10, help='number of runs')
+argparser.add_argument('--runs', type=int, default=5, help='number of runs')
 argparser.add_argument('--save', type=bool, default=False, help='save model')
 argparser.add_argument('--init', type=int, default=40, help='initial labeled set size')
 argparser.add_argument('--acq', type=int, default=40, help='acquisition size')
@@ -105,7 +105,7 @@ def varR(predictions, T):
 
 ########## Experiment Loop
 
-f = open("data/VarR/dataMCConnect.csv", 'w', newline='')
+f = open("data/tst/dataMCConnect_new_varR.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
@@ -154,8 +154,8 @@ for run in range(N_RUNS):
         optimizer = optim.Adam(curr_model.parameters(), lr=0.001)
 
         # Learning rate scheduler to adjust the learning rate
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-
+        # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+        curr_model.train()
         
 
         # Training loop
@@ -177,36 +177,15 @@ for run in range(N_RUNS):
                 running_loss += loss.item()
 
             # Step the scheduler after each epoch
-            scheduler.step()
+            # scheduler.step()
 
             #print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {running_loss/len(training_loader):.4f}")
 
             if epoch == NUM_EPOCHS - 1:
                 final_loss = running_loss/len(training_loader)
 
-        # Calculate intermediate metrics
-        correct = 0
-        total = 0
-
-        # Intermediate Testing loop
-        with torch.no_grad():
-                
-            # Iterate over test data in batches
-            for images, labels in training_loader:
-                images, labels = images.to(device), labels.to(device)
-    
-                outputs = curr_model(images)
-                _, predicted = torch.max(outputs.data, 1)
-    
-                # Save relevant metrics
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
         
-        accuracy = correct / total
-
-        # Store intermediate metrics in csv
-        writer.writerow([run, train_size, final_loss, accuracy])
-
+        # curr_model.train()
         all_preds = torch.empty((0, T), dtype=torch.long, device=device)  
         for images, labels in rem_loader:
 
@@ -228,6 +207,29 @@ for run in range(N_RUNS):
 
         # Calculate Uncertainty
         uncertainty = varR(all_preds, T)
+
+        # Calculate intermediate metrics
+        correct = 0
+        total = 0
+        curr_model.eval()
+        # Intermediate Testing loop
+        with torch.no_grad():
+                
+            # Iterate over test data in batches
+            for images, labels in training_loader:
+                images, labels = images.to(device), labels.to(device)
+    
+                outputs = curr_model(images)
+                _, predicted = torch.max(outputs.data, 1)
+    
+                # Save relevant metrics
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        
+        accuracy = correct / total
+
+        # Store intermediate metrics in csv
+        writer.writerow([run, train_size, final_loss, accuracy])
         
 
         # Select n most uncertain samples and move samples to training set
@@ -253,7 +255,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/VarR/MCDropconnect' + str(run) + '.pth')
+        torch.save(model.state_dict(), './models/tst/VarR/MCDropconnect' + str(run) + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model
