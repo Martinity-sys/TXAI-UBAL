@@ -53,3 +53,12 @@ options:
   --epochs EPOCHS  number of epochs for training
   --t T            number of forward passes (or number of models in an ensemble) for uncertainty quantification
 ```
+
+### CREDITS
+
+The ensemble models make use of the VotingClassifier from [torchensemble](https://github.com/TorchEnsemble-Community/Ensemble-Pytorch).
+The dropconnect layers use the implementation from [pytorch-nlp](https://pypi.org/project/pytorch-nlp/).
+
+### LLM usage
+
+LLM's were used for the debugging of some code snippets (mainly helping with aligning batch sizings).
