@@ -17,3 +17,13 @@ This repo is structured as:
 │   └── variance
 └── src
 ```
+
+- analysis: Files used for the analysis of our models
+    - calc_accuracy.py
+    - plots.ipynb
+
+- data: Files for training data and model accuracy data
+    - model_data: contains csv files with the run, training size, loss and accuracy of each model
+
+- models: Final models for each training run for each model
+- images: Images generated with the analysis
