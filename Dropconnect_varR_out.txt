@@ -1,0 +1,20 @@
+RUN 0
+Training run 0 complete!
+RUN 0: Loss of the trained model on the test images: 1.6083
+RUN 0: Accuracy of the trained model on the test images: 85.29%
+RUN 1
+Training run 1 complete!
+RUN 1: Loss of the trained model on the test images: 1.6019
+RUN 1: Accuracy of the trained model on the test images: 85.85%
+RUN 2
+Training run 2 complete!
+RUN 2: Loss of the trained model on the test images: 1.6994
+RUN 2: Accuracy of the trained model on the test images: 76.09%
+RUN 3
+Training run 3 complete!
+RUN 3: Loss of the trained model on the test images: 1.6103
+RUN 3: Accuracy of the trained model on the test images: 85.14%
+RUN 4
+Training run 4 complete!
+RUN 4: Loss of the trained model on the test images: 1.6008
+RUN 4: Accuracy of the trained model on the test images: 86.04%

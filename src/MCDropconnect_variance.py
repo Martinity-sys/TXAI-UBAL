@@ -106,7 +106,7 @@ def varR(predictions, T):
 ########## Experiment Loop
 
 # Initialise CSV writer to save metrics
-f = open("data/tst/dataMCConnect_new_variance.csv", 'w', newline='')
+f = open("data/model_data/dataMCConnect_new_variance_run2.csv", 'w', newline='')
 writer = csv.writer(f)
 writer.writerow(['run', 'train_size', 'Loss', 'Accuracy'])
 
@@ -247,7 +247,7 @@ for run in range(N_RUNS):
     print(f'Training run {run} complete!')
 
     if SAVE_MODEL:
-        torch.save(model.state_dict(), './models/tst/variance/MCDropconnect' + str(run) + '.pth')
+        torch.save(model.state_dict(), './models/models/variance/MCDropconnect_run2' + str(run) + '.pth')
         print('Model saved!')
 
     ########### Evaluate Model
